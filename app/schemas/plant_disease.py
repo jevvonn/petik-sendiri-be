@@ -17,6 +17,7 @@ class PlantDiseaseResponse(BaseModel):
     prevention: Optional[str] = None
     all_predictions: List[PredictionItem]
     plant_match: bool
+    is_plant_image: bool = True
     warning: Optional[str] = None
     
     class Config:
@@ -35,6 +36,7 @@ class PlantDiseaseResponse(BaseModel):
                     {"disease": "Tomato_healthy", "confidence": 0.02}
                 ],
                 "plant_match": True,
+                "is_plant_image": True,
                 "warning": None
             }
         }

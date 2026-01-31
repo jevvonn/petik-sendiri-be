@@ -7,6 +7,88 @@ import numpy as np
 from PIL import Image
 import io
 import json
+import base64
+from google import genai
+from google.genai import types
+from app.core.config import settings
+
+
+class PlantImageValidator:
+    """Validator to check if image is a plant using Gemini API"""
+    
+    def __init__(self):
+        print("Initializing Gemini client for plant validation...")
+        self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        print("Gemini client initialized")
+    
+    def is_plant_image(self, image_bytes: bytes) -> tuple:
+        """
+        Check if the image is a plant leaf using Gemini API
+        
+        Args:
+            image_bytes: Raw image bytes
+            
+        Returns:
+            Tuple of (is_plant: bool, reason: str)
+        """
+        try:
+            # Convert image to base64
+            base64_image = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # Determine image mime type
+            image = Image.open(io.BytesIO(image_bytes))
+            mime_type = "image/jpeg"
+            if image.format:
+                mime_type = f"image/{image.format.lower()}"
+            
+            # Create the prompt for Gemini
+            prompt = """Analyze this image and determine if it shows a plant leaf (specifically tomato, potato, or bell pepper leaf).
+
+Return ONLY a JSON object with this exact format:
+{"is_plant": true} or {"is_plant": false}
+
+Rules:
+- Return true if the image shows a plant leaf, plant, or vegetation
+- Return false if the image shows: person, animal, vehicle, electronics, food (non-plant), furniture, or any non-plant object
+- Only return the JSON, nothing else"""
+
+            # Call Gemini API with image
+            response = self.client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[
+                            types.Part.from_bytes(data=image_bytes, mime_type=mime_type),
+                            types.Part.from_text(text=prompt)
+                        ]
+                    )
+                ]
+            )
+            
+            # Parse response
+            response_text = response.text.strip()
+            
+            # Clean up response (remove markdown code blocks if present)
+            if response_text.startswith("```"):
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+                response_text = response_text.strip()
+            
+            # Parse JSON
+            result = json.loads(response_text)
+            is_plant = result.get("is_plant", False)
+            
+            print(f"Gemini plant validation result: {result}")
+            print(f"Gemini plant validation result: {is_plant}")
+
+            return is_plant, "OK" if is_plant else "Bukan gambar tanaman"
+            
+        except Exception as e:
+            print(f"Error in Gemini plant validation: {str(e)}")
+            # If validation fails, allow the image through
+            return True, "OK"
 
 
 class PlantDiseasePredictor:
@@ -20,6 +102,9 @@ class PlantDiseasePredictor:
         """
         print(f"Loading model from: {model_path}")
         self.model = tf.keras.models.load_model(model_path)
+        
+        # Initialize Gemini plant validator
+        self.plant_validator = PlantImageValidator()
         
         print(f"Loading class names from: {class_names_path}")
         with open(class_names_path, 'r') as f:
@@ -218,7 +303,25 @@ class PlantDiseasePredictor:
             Dictionary berisi hasil prediksi
         """
         try:
-            # Preprocess image
+            # Step 1: Check if image is a plant using Gemini
+            is_plant, reason = self.plant_validator.is_plant_image(image_bytes)
+            
+            if not is_plant:
+                return {
+                    'plant_type': None,
+                    'disease_name': None,
+                    'confidence': 0.0,
+                    'is_healthy': None,
+                    'description': None,
+                    'treatment': None,
+                    'prevention': None,
+                    'all_predictions': [],
+                    'plant_match': False,
+                    'is_plant_image': False,
+                    'warning': 'Gambar tidak terdeteksi sebagai tanaman. Silakan upload gambar daun tanaman (tomat/kentang/paprika).'
+                }
+            
+            # Step 2: Preprocess image
             processed_image = self.preprocess_image(image_bytes)
             
             # Predict
@@ -251,7 +354,8 @@ class PlantDiseasePredictor:
                     'prevention': None,
                     'all_predictions': all_predictions,
                     'plant_match': False,
-                    'warning': 'Confidence terlalu rendah untuk memberikan hasil yang akurat. Silakan upload gambar yang lebih jelas.'
+                    'is_plant_image': True,
+                    'warning': 'Confidence terlalu rendah untuk memberikan hasil yang akurat. Silakan upload gambar daun tanaman (tomat/kentang/paprika) yang lebih jelas.'
                 }
             
             # Validasi jenis tanaman jika user memberikan input
@@ -280,7 +384,8 @@ class PlantDiseasePredictor:
                 'treatment': info['treatment'],
                 'prevention': info['prevention'],
                 'all_predictions': all_predictions,
-                'plant_match': plant_match
+                'plant_match': plant_match,
+                'is_plant_image': True
             }
             
             # Jika tanaman tidak sesuai, tambahkan warning
