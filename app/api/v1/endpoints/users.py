@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.db.base import get_db
 from app.schemas.user import UserCreate, UserUpdate, UserResponse
 from app.services.user_service import UserService
-from app.api.deps import get_current_active_user, get_current_superuser
+from app.api.deps import get_current_superuser, get_current_active_user
 from app.models.user import User
 
 router = APIRouter()
@@ -15,10 +15,10 @@ def get_users(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_superuser)
 ):
     """
-    Retrieve all users with pagination.
+    Retrieve all users with pagination. (Admin only)
     
     - **skip**: Number of records to skip (default: 0)
     - **limit**: Maximum number of records to return (default: 100)
@@ -41,10 +41,10 @@ def get_current_user_info(
 def get_user(
     user_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_superuser)
 ):
     """
-    Get a specific user by ID.
+    Get a specific user by ID. (Admin only)
     
     - **user_id**: The ID of the user to retrieve
     """
@@ -60,10 +60,11 @@ def get_user(
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Create User")
 def create_user(
     user_data: UserCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_superuser)
 ):
     """
-    Create a new user.
+    Create a new user. (Admin only)
     
     - **email**: User's email address (must be unique)
     - **username**: User's username (must be unique)
@@ -93,20 +94,13 @@ def update_user(
     user_id: int,
     user_data: UserUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_superuser)
 ):
     """
-    Update an existing user.
+    Update an existing user. (Admin only)
     
     - **user_id**: The ID of the user to update
     """
-    # Only allow users to update their own profile or superusers
-    if current_user.id != user_id and not current_user.is_superuser:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not enough permissions"
-        )
-    
     user = UserService.update(db, user_id=user_id, user_data=user_data)
     if not user:
         raise HTTPException(
