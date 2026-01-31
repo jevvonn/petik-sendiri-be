@@ -1,6 +1,5 @@
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.db.base import get_db
@@ -20,18 +19,28 @@ class TokenData(BaseModel):
     user_id: int | None = None
 
 
+class EmailPasswordRequestForm:
+    def __init__(
+        self,
+        email: str = Form(..., description="Your email address"),
+        password: str = Form(..., description="Your password"),
+    ):
+        self.email = email
+        self.password = password
+
+
 @router.post("/login", response_model=Token, summary="User Login")
 def login(
     db: Session = Depends(get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
+    form_data: EmailPasswordRequestForm = Depends()
 ):
     """
-    OAuth2 compatible token login, get an access token for future requests.
+    Login with email and password to get an access token for future requests.
     
-    - **username**: Your email address
+    - **email**: Your email address
     - **password**: Your password
     """
-    user = UserService.authenticate(db, email=form_data.username, password=form_data.password)
+    user = UserService.authenticate(db, email=form_data.email, password=form_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
