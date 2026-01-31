@@ -18,7 +18,7 @@ jobs:
         with:
           host: 188.166.206.27
           username: root
-          key: ${{ secrets.petik-sendiri-server }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
             cd /root/petiksendiri-backend
