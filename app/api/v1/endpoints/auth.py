@@ -1,4 +1,5 @@
 from datetime import timedelta
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
@@ -14,6 +15,9 @@ router = APIRouter()
 class Token(BaseModel):
     access_token: str
     token_type: str
+    email: EmailStr
+    username: str
+    full_name: Optional[str] = None
 
 
 class TokenData(BaseModel):
@@ -55,7 +59,13 @@ def login(
         expires_delta=access_token_expires
     )
     
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "email": user.email,
+        "username": user.username,
+        "full_name": user.full_name
+    }
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="User Registration")
