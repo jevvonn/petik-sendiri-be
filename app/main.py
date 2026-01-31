@@ -8,7 +8,7 @@ app = FastAPI(
     description="""
     ## PetikSendiri API
     
-    Backend API untuk aplikasi PetikSendiri.
+    API untuk aplikasi PetikSendiri.
     
     ### Features:
     * **User Management** - Create, read, update, and delete users
