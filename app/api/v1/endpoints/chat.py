@@ -32,7 +32,7 @@ router = APIRouter()
 def send_message(
     request: ChatRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Send a message to PetikSendiri Assistant and get a response.
@@ -40,16 +40,17 @@ def send_message(
     - **message**: The user's message/question
     - **session_id**: Optional session ID for continuing a conversation
     
-    If no session_id is provided, a new session will be created.
+    If no session_id is provided, a new session will be created automatically.
+    The session title will be generated from your first message.
     The assistant only answers questions about urban farming and plants.
-    """
-    user_id = current_user.id if current_user else None
     
+    Requires authentication token.
+    """
     session, assistant_message, is_new_session = ChatService.process_message(
         db=db,
         session_id=request.session_id,
         user_message=request.message,
-        user_id=user_id
+        user_id=current_user.id
     )
     
     return ChatResponse(
@@ -61,39 +62,6 @@ def send_message(
             created_at=assistant_message.created_at
         ),
         is_new_session=is_new_session
-    )
-
-
-@router.post("/sessions", response_model=ChatSessionWithMessages, summary="Create New Chat Session")
-def create_session(
-    db: Session = Depends(get_db),
-    current_user: Optional[User] = Depends(get_optional_user)
-):
-    """
-    Create a new chat session.
-    
-    Returns the session with the welcome message from PetikSendiri Assistant.
-    """
-    user_id = current_user.id if current_user else None
-    session = ChatService.create_session(db, user_id)
-    
-    messages = ChatService.get_session_messages(db, session.session_id)
-    
-    return ChatSessionWithMessages(
-        id=session.id,
-        session_id=session.session_id,
-        user_id=session.user_id,
-        title=session.title,
-        created_at=session.created_at,
-        updated_at=session.updated_at,
-        messages=[
-            ChatMessageResponse(
-                id=msg.id,
-                role=msg.role,
-                content=msg.content,
-                created_at=msg.created_at
-            ) for msg in messages
-        ]
     )
 
 

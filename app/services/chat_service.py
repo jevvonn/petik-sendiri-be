@@ -109,18 +109,6 @@ class ChatService:
         )
         db.add(message)
         
-        # Update session title if it's the first user message
-        if role == MessageRole.USER:
-            user_messages = db.query(ChatMessage).filter(
-                ChatMessage.session_id == session.id,
-                ChatMessage.role == MessageRole.USER
-            ).count()
-            
-            if user_messages == 0:  # This will be the first
-                # Generate title from first message
-                title = content[:50] + "..." if len(content) > 50 else content
-                session.title = title
-        
         session.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(message)
@@ -147,12 +135,25 @@ class ChatService:
                 # Session not found, create new one
                 session = ChatService.create_session(db, user_id)
                 is_new_session = True
+            else:
+                # Update user_id if session exists but doesn't have user_id
+                if user_id and not session.user_id:
+                    session.user_id = user_id
+                    db.commit()
+                    db.refresh(session)
         else:
             session = ChatService.create_session(db, user_id)
             is_new_session = True
         
         # Add user message
-        ChatService.add_message(db, session, MessageRole.USER, user_message)
+        user_msg = ChatService.add_message(db, session, MessageRole.USER, user_message)
+        
+        # Generate title from first user message if it's a new session
+        if is_new_session:
+            title = rag_service.generate_title(user_message)
+            session.title = title
+            db.commit()
+            db.refresh(session)
         
         # Get chat history for context
         chat_history = ChatService.get_chat_history(db, session.session_id)

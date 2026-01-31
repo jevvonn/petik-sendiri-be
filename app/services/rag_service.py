@@ -274,6 +274,39 @@ Jika konteks kosong atau tidak relevan, jawab berdasarkan pengetahuanmu tentang 
             logger.error(f"Error retrieving context: {e}")
             return ""
     
+    def generate_title(self, user_message: str) -> str:
+        """Generate a concise title from user's first message using LLM"""
+        try:
+            prompt = f"""Buatkan judul yang singkat (maksimal 5 kata) untuk percakapan yang dimulai dengan pertanyaan berikut:
+
+"{user_message}"
+
+Judul harus:
+- Singkat dan padat (maksimal 5 kata)
+- Menggambarkan inti dari pertanyaan
+- Dalam bahasa Indonesia
+- Tanpa tanda kutip
+
+Contoh:
+- Pertanyaan: "Bagaimana cara menanam tomat di rumah?"
+- Judul: "Cara Menanam Tomat"
+
+Berikan hanya judul saja tanpa penjelasan tambahan."""
+            
+            messages = [HumanMessage(content=prompt)]
+            response = self.llm.invoke(messages)
+            title = response.content.strip()
+            
+            # Fallback if title is too long
+            if len(title) > 50:
+                title = user_message[:50] + "..."
+            
+            return title
+        except Exception as e:
+            logger.error(f"Error generating title: {e}")
+            # Fallback to simple truncation
+            return user_message[:50] + "..." if len(user_message) > 50 else user_message
+    
     def generate_response(
         self,
         user_message: str,
