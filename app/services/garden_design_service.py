@@ -356,8 +356,9 @@ Create a photorealistic transformation of the wall with urban farming elements w
         with open(file_path, "wb") as f:
             f.write(image_data)
         
-        # Return relative path for URL
-        return f"/{file_path}"
+        # Return relative path for URL (remove 'public/' prefix)
+        url_path = file_path.replace("public/", "")
+        return f"/{url_path}"
     
     @staticmethod
     def create_garden_design(
