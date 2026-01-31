@@ -19,7 +19,7 @@ from app.schemas.chat import (
 )
 from app.services.chat_service import ChatService
 from app.services.rag_service import rag_service, RAGService
-from app.api.deps import get_current_active_user, get_current_user
+from app.api.deps import get_current_active_user, get_current_user, get_optional_user
 from app.models.user import User
 from app.models.chat import ProcessedDocument
 
@@ -32,7 +32,7 @@ router = APIRouter()
 def send_message(
     request: ChatRequest,
     db: Session = Depends(get_db),
-    current_user: Optional[User] = None  # Optional auth
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     """
     Send a message to PetikSendiri Assistant and get a response.
@@ -67,7 +67,7 @@ def send_message(
 @router.post("/sessions", response_model=ChatSessionWithMessages, summary="Create New Chat Session")
 def create_session(
     db: Session = Depends(get_db),
-    current_user: Optional[User] = None
+    current_user: Optional[User] = Depends(get_optional_user)
 ):
     """
     Create a new chat session.

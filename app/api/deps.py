@@ -1,4 +1,4 @@
-from typing import Generator
+from typing import Generator, Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from app.services.user_service import UserService
 from app.models.user import User
 
 bearer_scheme = HTTPBearer()
+optional_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
@@ -59,3 +60,24 @@ def get_current_superuser(
             detail="Not enough permissions"
         )
     return current_user
+
+
+def get_optional_user(
+    db: Session = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials = Depends(optional_bearer_scheme)
+) -> Optional[User]:
+    """Get current user if authenticated, None otherwise."""
+    if credentials is None:
+        return None
+    
+    token = credentials.credentials
+    payload = decode_access_token(token)
+    if payload is None:
+        return None
+    
+    user_id: int = payload.get("sub")
+    if user_id is None:
+        return None
+    
+    user = UserService.get_by_id(db, user_id=int(user_id))
+    return user
