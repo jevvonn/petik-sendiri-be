@@ -3,6 +3,7 @@ import joblib
 import httpx
 import numpy as np
 import pandas as pd
+from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional
@@ -57,19 +58,29 @@ class PlantRecommendationResponse(BaseModel):
 async def get_weather_data(latitude: float, longitude: float) -> dict:
     """
     Fetch weather data from Open-Meteo API.
-    Returns temperature (Celsius), humidity (%), and rainfall (mm) for 7-day forecast.
+    Returns average temperature (Celsius), humidity (%), and rainfall (mm) for the past 30 days.
+    Uses historical data to provide stable recommendations that don't change throughout the day.
     """
-    # Open-Meteo API - free, no API key needed
-    # Get current temperature & humidity + 7-day rainfall forecast
+    # Calculate date range for the past 30 days
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=30)
+    
+    # Format dates as YYYY-MM-DD
+    start_date_str = start_date.strftime("%Y-%m-%d")
+    end_date_str = end_date.strftime("%Y-%m-%d")
+    
+    # Open-Meteo Historical API - get hourly data for the past 30 days
+    # We'll get data at specific hours (6:00, 12:00, 18:00) to average
     meteo_url = (
-        f"https://api.open-meteo.com/v1/forecast?"
+        f"https://archive-api.open-meteo.com/v1/archive?"
         f"latitude={latitude}&longitude={longitude}"
-        f"&current=temperature_2m,relative_humidity_2m"
+        f"&start_date={start_date_str}&end_date={end_date_str}"
+        f"&hourly=temperature_2m,relative_humidity_2m"
         f"&daily=precipitation_sum"
-        f"&timezone=auto&forecast_days=7"
+        f"&timezone=auto"
     )
     
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(meteo_url)
         
         if response.status_code != 200:
@@ -80,20 +91,41 @@ async def get_weather_data(latitude: float, longitude: float) -> dict:
         
         meteo_data = response.json()
         
-        # Extract current temperature and humidity
-        temperature = meteo_data["current"]["temperature_2m"]
-        humidity = meteo_data["current"]["relative_humidity_2m"]
+        # Extract hourly data
+        hourly_data = meteo_data.get("hourly", {})
+        hourly_times = hourly_data.get("time", [])
+        hourly_temps = hourly_data.get("temperature_2m", [])
+        hourly_humidity = hourly_data.get("relative_humidity_2m", [])
         
-        # Sum up the 7-day precipitation forecast
+        # Filter data for specific hours (6:00, 12:00, 18:00) to get representative daily values
+        # These hours capture morning, midday, and evening conditions
+        target_hours = [6, 12, 18]
+        filtered_temps = []
+        filtered_humidity = []
+        
+        for i, time_str in enumerate(hourly_times):
+            # Parse hour from time string (format: "2024-01-15T06:00")
+            hour = int(time_str.split("T")[1].split(":")[0])
+            if hour in target_hours:
+                if hourly_temps[i] is not None:
+                    filtered_temps.append(hourly_temps[i])
+                if hourly_humidity[i] is not None:
+                    filtered_humidity.append(hourly_humidity[i])
+        
+        # Calculate averages
+        avg_temperature = sum(filtered_temps) / len(filtered_temps) if filtered_temps else 25.0
+        avg_humidity = sum(filtered_humidity) / len(filtered_humidity) if filtered_humidity else 70.0
+        
+        # Sum up the 30-day precipitation
         rainfall = 0.0
         if "daily" in meteo_data and "precipitation_sum" in meteo_data["daily"]:
             precipitation_values = meteo_data["daily"]["precipitation_sum"]
             rainfall = sum(p for p in precipitation_values if p is not None)
         
         return {
-            "temperature": temperature,
-            "humidity": humidity,
-            "rainfall": rainfall
+            "temperature": round(avg_temperature, 2),
+            "humidity": round(avg_humidity, 2),
+            "rainfall": round(rainfall, 2)
         }
 
 
@@ -133,18 +165,24 @@ async def get_plant_recommendation(
     - **longitude**: Longitude of the location (-180 to 180)
     - **num_recommendations**: Number of recommendations to return (1-10, default: 3)
     
-    The endpoint fetches current weather data (temperature, humidity, rainfall) from 
-    Open-Meteo API and uses a machine learning model to recommend suitable plants.
+    The endpoint fetches historical weather data (30-day average temperature, humidity, 
+    and total rainfall) from Open-Meteo API and uses a machine learning model to recommend 
+    suitable plants. Using historical averages ensures stable recommendations throughout the day.
     """
     # Get weather data from Open-Meteo
     weather = await get_weather_data(request.latitude, request.longitude)
+    
+    # Request more recommendations from ML model than needed to account for 
+    # plants that may not exist in database. Then filter to requested amount.
+    buffer_multiplier = 3  # Get 3x more recommendations to ensure we have enough matches
+    ml_recommendations_count = min(request.num_recommendations * buffer_multiplier, 21)  # Max 21 (all classes)
     
     # Get plant recommendations from ML model
     recommendations = predict_top_k(
         temp=weather["temperature"],
         humidity=weather["humidity"],
         rainfall=weather["rainfall"],
-        k=request.num_recommendations
+        k=ml_recommendations_count
     )
     
     # Convert plant names to slugs (lowercase, spaces to hyphens)
@@ -162,9 +200,10 @@ async def get_plant_recommendation(
     plant_mapping = {plant.slug: plant for plant in plants_from_db}
     
     # Build response maintaining the order from ML model (highest probability first)
+    # Only include plants that exist in the database, limited to requested count
     recommendation_list = []
     for slug in plant_slugs:
-        if slug in plant_mapping:
+        if slug in plant_mapping and len(recommendation_list) < request.num_recommendations:
             plant = plant_mapping[slug]
             recommendation_list.append(
                 PlantRecommendation(

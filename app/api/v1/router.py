@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1.endpoints import users, auth, plant_recommendation, chat, ensiklopedia, plant_disease, garden_design
+from app.api.v1.endpoints import users, auth, plant_recommendation, chat, ensiklopedia, plant_disease, vendors, garden_design
 
 api_router = APIRouter()
 
@@ -10,3 +10,4 @@ api_router.include_router(plant_recommendation.router, prefix="/recommendation",
 api_router.include_router(ensiklopedia.router, prefix="/ensiklopedia", tags=["Ensiklopedia - Plant Encyclopedia"])
 api_router.include_router(plant_disease.router, prefix="/plant-disease", tags=["Plant Disease Detection"])
 api_router.include_router(garden_design.router, prefix="/garden-design", tags=["Garden Design Generation"])
+api_router.include_router(vendors.router, prefix="/vendors", tags=["Vendors"])
