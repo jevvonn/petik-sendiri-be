@@ -32,3 +32,13 @@ class VendorResponse(VendorBase):
     
     class Config:
         from_attributes = True
+
+
+class VendorWithDistanceResponse(VendorBase):
+    id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    distance_km: Optional[int] = None  # Distance in km (rounded)
+    
+    class Config:
+        from_attributes = True

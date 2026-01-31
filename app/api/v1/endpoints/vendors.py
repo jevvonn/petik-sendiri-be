@@ -2,7 +2,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from app.db.base import get_db
-from app.schemas.vendor import VendorCreate, VendorUpdate, VendorResponse
+from app.schemas.vendor import VendorCreate, VendorUpdate, VendorResponse, VendorWithDistanceResponse
 from app.services.vendor_service import VendorService
 from app.api.deps import get_current_active_user, get_current_superuser
 from app.models.user import User
@@ -10,32 +10,45 @@ from app.models.user import User
 router = APIRouter()
 
 
-@router.get("/", response_model=List[VendorResponse], summary="Get All Vendors")
+@router.get("/", response_model=List[VendorWithDistanceResponse], summary="Get All Vendors")
 def get_vendors(
+    latitude: Optional[float] = Query(None, description="User's latitude for distance calculation"),
+    longitude: Optional[float] = Query(None, description="User's longitude for distance calculation"),
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve all vendors.
+    Retrieve all vendors. Optionally provide your location to see distance.
+    
+    - **latitude**: Your latitude (optional, for distance calculation)
+    - **longitude**: Your longitude (optional, for distance calculation)
+    
+    If both latitude and longitude are provided, results will include distance_km and be sorted by nearest.
     """
-    vendors = VendorService.get_all(db)
+    vendors = VendorService.get_all(db, user_lat=latitude, user_lng=longitude)
     return vendors
 
 
-@router.get("/search/name", response_model=List[VendorResponse], summary="Search Vendors by Name")
+@router.get("/search/name", response_model=List[VendorWithDistanceResponse], summary="Search Vendors by Name")
 def search_vendors_by_name(
     name: str = Query(..., description="Name to search for (partial match)"),
+    latitude: Optional[float] = Query(None, description="User's latitude for distance calculation"),
+    longitude: Optional[float] = Query(None, description="User's longitude for distance calculation"),
     db: Session = Depends(get_db)
 ):
     """
     Search vendors by name (case-insensitive partial match).
     
     - **name**: Name to search for
+    - **latitude**: Your latitude (optional, for distance calculation)
+    - **longitude**: Your longitude (optional, for distance calculation)
+    
+    If both latitude and longitude are provided, results will include distance_km and be sorted by nearest.
     """
-    vendors = VendorService.search_by_name(db, name=name)
+    vendors = VendorService.search_by_name(db, name=name, user_lat=latitude, user_lng=longitude)
     return vendors
 
 
-@router.get("/search/location", response_model=List[VendorResponse], summary="Search Vendors by Location")
+@router.get("/search/location", response_model=List[VendorWithDistanceResponse], summary="Search Vendors by Location")
 def search_vendors_by_location(
     latitude: float = Query(..., description="Latitude of the search center"),
     longitude: float = Query(..., description="Longitude of the search center"),

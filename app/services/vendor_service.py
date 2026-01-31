@@ -1,7 +1,27 @@
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+import math
 from app.models.vendor import Vendor
 from app.schemas.vendor import VendorCreate, VendorUpdate
+
+
+def calculate_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
+    """
+    Calculate the distance between two points using the Haversine formula.
+    Returns distance in km (rounded to nearest integer).
+    """
+    R = 6371  # Earth's radius in kilometers
+    
+    lat1_rad = math.radians(lat1)
+    lat2_rad = math.radians(lat2)
+    delta_lat = math.radians(lat2 - lat1)
+    delta_lon = math.radians(lon2 - lon1)
+    
+    a = math.sin(delta_lat / 2) ** 2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    distance = R * c
+    return round(distance)
 
 
 class VendorService:
@@ -17,14 +37,45 @@ class VendorService:
         return db.query(Vendor).filter(Vendor.name == name).first()
     
     @staticmethod
-    def search_by_name(db: Session, name: str) -> List[Vendor]:
-        """Search vendors by name (case-insensitive partial match)."""
-        return db.query(Vendor).filter(Vendor.name.ilike(f"%{name}%")).all()
+    def search_by_name(db: Session, name: str, user_lat: Optional[float] = None, user_lng: Optional[float] = None) -> List[Dict[str, Any]]:
+        """Search vendors by name (case-insensitive partial match) with optional distance."""
+        vendors = db.query(Vendor).filter(Vendor.name.ilike(f"%{name}%")).all()
+        return VendorService._add_distance_to_vendors(vendors, user_lat, user_lng)
     
     @staticmethod
-    def get_all(db: Session) -> List[Vendor]:
-        """Get all vendors."""
-        return db.query(Vendor).all()
+    def get_all(db: Session, user_lat: Optional[float] = None, user_lng: Optional[float] = None) -> List[Dict[str, Any]]:
+        """Get all vendors with optional distance from user location."""
+        vendors = db.query(Vendor).all()
+        return VendorService._add_distance_to_vendors(vendors, user_lat, user_lng)
+    
+    @staticmethod
+    def _add_distance_to_vendors(vendors: List[Vendor], user_lat: Optional[float], user_lng: Optional[float]) -> List[Dict[str, Any]]:
+        """Add distance_km to each vendor if user location is provided."""
+        result = []
+        for vendor in vendors:
+            vendor_dict = {
+                "id": vendor.id,
+                "name": vendor.name,
+                "image_url": vendor.image_url,
+                "latitude": vendor.latitude,
+                "longitude": vendor.longitude,
+                "email": vendor.email,
+                "phone_number": vendor.phone_number,
+                "created_at": vendor.created_at,
+                "updated_at": vendor.updated_at,
+                "distance_km": None
+            }
+            if user_lat is not None and user_lng is not None:
+                vendor_dict["distance_km"] = calculate_distance_km(
+                    user_lat, user_lng, vendor.latitude, vendor.longitude
+                )
+            result.append(vendor_dict)
+        
+        # Sort by distance if distance is calculated
+        if user_lat is not None and user_lng is not None:
+            result.sort(key=lambda x: x["distance_km"])
+        
+        return result
     
     @staticmethod
     def create(db: Session, vendor_data: VendorCreate) -> Vendor:
@@ -77,19 +128,21 @@ class VendorService:
         radius_km: float = 10.0,
         skip: int = 0, 
         limit: int = 100
-    ) -> List[Vendor]:
+    ) -> List[Dict[str, Any]]:
         """
         Search vendors within a radius from a given location.
         Uses a simple bounding box approach for filtering.
+        Returns vendors with distance_km.
         """
         # Approximate degree changes for the radius
         # 1 degree latitude ≈ 111 km
         # 1 degree longitude ≈ 111 km * cos(latitude)
-        import math
         lat_range = radius_km / 111.0
         lng_range = radius_km / (111.0 * math.cos(math.radians(lat)))
         
-        return db.query(Vendor).filter(
+        vendors = db.query(Vendor).filter(
             Vendor.latitude.between(lat - lat_range, lat + lat_range),
             Vendor.longitude.between(lng - lng_range, lng + lng_range)
         ).offset(skip).limit(limit).all()
+        
+        return VendorService._add_distance_to_vendors(vendors, lat, lng)
