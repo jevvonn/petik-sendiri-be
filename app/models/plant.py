@@ -8,6 +8,7 @@ class Plant(Base):
     __tablename__ = "plants"
     
     id = Column(BigInteger, primary_key=True, index=True)
+    slug = Column(String(100), nullable=False, index=True)
     name = Column(String(100), nullable=False, index=True)
     description = Column(Text, nullable=True)
     category = Column(String(100), nullable=False, index=True)
