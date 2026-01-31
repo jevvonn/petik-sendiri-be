@@ -21,7 +21,21 @@ def get_vendors(
     return vendors
 
 
-@router.get("/search", response_model=List[VendorResponse], summary="Search Vendors by Location")
+@router.get("/search/name", response_model=List[VendorResponse], summary="Search Vendors by Name")
+def search_vendors_by_name(
+    name: str = Query(..., description="Name to search for (partial match)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Search vendors by name (case-insensitive partial match).
+    
+    - **name**: Name to search for
+    """
+    vendors = VendorService.search_by_name(db, name=name)
+    return vendors
+
+
+@router.get("/search/location", response_model=List[VendorResponse], summary="Search Vendors by Location")
 def search_vendors_by_location(
     latitude: float = Query(..., description="Latitude of the search center"),
     longitude: float = Query(..., description="Longitude of the search center"),

@@ -13,8 +13,13 @@ class VendorService:
     
     @staticmethod
     def get_by_name(db: Session, name: str) -> Optional[Vendor]:
-        """Get vendor by name."""
+        """Get vendor by exact name."""
         return db.query(Vendor).filter(Vendor.name == name).first()
+    
+    @staticmethod
+    def search_by_name(db: Session, name: str) -> List[Vendor]:
+        """Search vendors by name (case-insensitive partial match)."""
+        return db.query(Vendor).filter(Vendor.name.ilike(f"%{name}%")).all()
     
     @staticmethod
     def get_all(db: Session) -> List[Vendor]:
