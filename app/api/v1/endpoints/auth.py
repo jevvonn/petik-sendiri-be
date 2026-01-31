@@ -1,7 +1,7 @@
 from datetime import timedelta
-from fastapi import APIRouter, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from app.db.base import get_db
 from app.services.user_service import UserService
 from app.schemas.user import UserRegister, UserResponse
@@ -20,20 +20,15 @@ class TokenData(BaseModel):
     user_id: int | None = None
 
 
-class EmailPasswordRequestForm:
-    def __init__(
-        self,
-        email: str = Form(..., description="Your email address"),
-        password: str = Form(..., description="Your password"),
-    ):
-        self.email = email
-        self.password = password
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
 
 
 @router.post("/login", response_model=Token, summary="User Login")
 def login(
-    db: Session = Depends(get_db),
-    form_data: EmailPasswordRequestForm = Depends()
+    login_data: LoginRequest,
+    db: Session = Depends(get_db)
 ):
     """
     Login with email and password to get an access token for future requests.
@@ -41,7 +36,7 @@ def login(
     - **email**: Your email address
     - **password**: Your password
     """
-    user = UserService.authenticate(db, email=form_data.email, password=form_data.password)
+    user = UserService.authenticate(db, email=login_data.email, password=login_data.password)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
