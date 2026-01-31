@@ -1,0 +1,4 @@
+# Folder ini menyimpan vector store untuk RAG
+# File di folder ini di-generate otomatis dan tidak perlu di-commit ke git
+*.faiss
+*.pkl
