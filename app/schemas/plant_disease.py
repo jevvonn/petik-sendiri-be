@@ -8,13 +8,13 @@ class PredictionItem(BaseModel):
 
 
 class PlantDiseaseResponse(BaseModel):
-    plant_type: str
-    disease_name: str
+    plant_type: Optional[str] = None
+    disease_name: Optional[str] = None
     confidence: float
-    is_healthy: bool
-    description: str
-    treatment: str
-    prevention: str
+    is_healthy: Optional[bool] = None
+    description: Optional[str] = None
+    treatment: Optional[str] = None
+    prevention: Optional[str] = None
     all_predictions: List[PredictionItem]
     plant_match: bool
     warning: Optional[str] = None

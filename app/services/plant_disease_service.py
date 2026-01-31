@@ -229,11 +229,6 @@ class PlantDiseasePredictor:
             predicted_class = self.class_names[top_index]
             confidence = float(predictions[top_index])
             
-            # Validasi jenis tanaman jika user memberikan input
-            plant_match = True
-            if user_plant_type:
-                plant_match = self.validate_plant_type(predicted_class, user_plant_type)
-            
             # Get top 3 predictions
             top_3_indices = np.argsort(predictions)[-3:][::-1]
             all_predictions = [
@@ -243,6 +238,26 @@ class PlantDiseasePredictor:
                 }
                 for i in top_3_indices
             ]
+            
+            # If confidence < 0.85, return null/empty result
+            if confidence < 0.85:
+                return {
+                    'plant_type': None,
+                    'disease_name': None,
+                    'confidence': confidence,
+                    'is_healthy': None,
+                    'description': None,
+                    'treatment': None,
+                    'prevention': None,
+                    'all_predictions': all_predictions,
+                    'plant_match': False,
+                    'warning': 'Confidence terlalu rendah untuk memberikan hasil yang akurat. Silakan upload gambar yang lebih jelas.'
+                }
+            
+            # Validasi jenis tanaman jika user memberikan input
+            plant_match = True
+            if user_plant_type:
+                plant_match = self.validate_plant_type(predicted_class, user_plant_type)
             
             # Get disease info
             info = self.disease_info.get(predicted_class, {
