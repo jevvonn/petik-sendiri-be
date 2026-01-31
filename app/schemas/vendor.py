@@ -39,6 +39,7 @@ class VendorWithDistanceResponse(VendorBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     distance_km: Optional[int] = None  # Distance in km (rounded)
+    google_maps_url: str
     
     class Config:
         from_attributes = True

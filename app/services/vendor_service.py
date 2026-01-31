@@ -63,7 +63,8 @@ class VendorService:
                 "phone_number": vendor.phone_number,
                 "created_at": vendor.created_at,
                 "updated_at": vendor.updated_at,
-                "distance_km": None
+                "distance_km": None,
+                "google_maps_url": f"https://www.google.com/maps/search/?api=1&query={vendor.latitude},{vendor.longitude}"
             }
             if user_lat is not None and user_lng is not None:
                 vendor_dict["distance_km"] = calculate_distance_km(
