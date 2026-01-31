@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.api.v1.router import api_router
 
@@ -13,10 +14,15 @@ app = FastAPI(
     ### Features:
     * **User Management** - Create, read, update, and delete users
     * **Authentication** - JWT-based authentication
+    * **PetikSendiri Assistant** - AI Chatbot dengan RAG untuk urban farming
     
     ### Authentication:
     Use the `/api/v1/auth/login` endpoint to get an access token,
     then include it in the Authorization header as `Bearer <token>`.
+    
+    ### PetikSendiri Assistant:
+    AI Chatbot yang dapat menjawab pertanyaan seputar urban farming dan tanaman.
+    Menggunakan RAG (Retrieval-Augmented Generation) dengan knowledge base dari dokumen PDF/DOCX/TXT.
     """,
     version=settings.APP_VERSION,
     docs_url="/docs",
@@ -35,6 +41,9 @@ app.add_middleware(
 
 # Include API router
 app.include_router(api_router, prefix="/api/v1")
+
+# Mount static files from ./public folder
+app.mount("/", StaticFiles(directory="public"), name="public")
 
 
 @app.get("/", tags=["Root"])

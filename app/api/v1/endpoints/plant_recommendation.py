@@ -3,9 +3,12 @@ import joblib
 import httpx
 import numpy as np
 import pandas as pd
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel, Field
-from typing import List
+from typing import List, Optional
+from sqlalchemy.orm import Session
+from app.db.base import get_db
+from app.models.plant import Plant
 
 router = APIRouter()
 
@@ -26,8 +29,17 @@ class PlantRecommendationRequest(BaseModel):
 
 
 class PlantRecommendation(BaseModel):
-    plant_name: str
+    id: int
+    name: str
+    description: Optional[str] = None
+    category: str
+    difficulty_level: Optional[str] = None
+    duration_days: Optional[str] = None
+    image_url: Optional[str] = None
     probability: float
+    
+    class Config:
+        from_attributes = True
 
 
 class WeatherData(BaseModel):
@@ -109,7 +121,10 @@ def predict_top_k(temp: float, humidity: float, rainfall: float, k: int = 3) -> 
     summary="Get Plant Recommendations",
     description="Get plant recommendations based on location weather data"
 )
-async def get_plant_recommendation(request: PlantRecommendationRequest):
+async def get_plant_recommendation(
+    request: PlantRecommendationRequest,
+    db: Session = Depends(get_db)
+):
     """
     Get plant recommendations based on weather conditions at the specified location.
     
@@ -118,12 +133,12 @@ async def get_plant_recommendation(request: PlantRecommendationRequest):
     - **num_recommendations**: Number of recommendations to return (1-10, default: 3)
     
     The endpoint fetches current weather data (temperature, humidity, rainfall) from 
-    OpenWeatherMap API and uses a machine learning model to recommend suitable plants.
+    Open-Meteo API and uses a machine learning model to recommend suitable plants.
     """
-    # Get weather data from OpenWeatherMap
+    # Get weather data from Open-Meteo
     weather = await get_weather_data(request.latitude, request.longitude)
     
-    # Get plant recommendations
+    # Get plant recommendations from ML model
     recommendations = predict_top_k(
         temp=weather["temperature"],
         humidity=weather["humidity"],
@@ -131,11 +146,37 @@ async def get_plant_recommendation(request: PlantRecommendationRequest):
         k=request.num_recommendations
     )
     
-    # Format response
-    recommendation_list = [
-        PlantRecommendation(plant_name=plant_name, probability=float(prob))
-        for plant_name, prob in recommendations
-    ]
+    # Convert plant names to slugs (lowercase, spaces to hyphens)
+    def to_slug(name: str) -> str:
+        return name.lower().replace(" ", "-")
+    
+    # Extract plant names and create probability mapping with slugs
+    plant_slugs = [to_slug(plant_name) for plant_name, _ in recommendations]
+    prob_mapping = {to_slug(plant_name): float(prob) for plant_name, prob in recommendations}
+    
+    # Query database for plants matching the recommended slugs using IN query
+    plants_from_db = db.query(Plant).filter(Plant.slug.in_(plant_slugs)).all()
+    
+    # Create a mapping of plant slug to plant object for ordering
+    plant_mapping = {plant.slug: plant for plant in plants_from_db}
+    
+    # Build response maintaining the order from ML model (highest probability first)
+    recommendation_list = []
+    for slug in plant_slugs:
+        if slug in plant_mapping:
+            plant = plant_mapping[slug]
+            recommendation_list.append(
+                PlantRecommendation(
+                    id=plant.id,
+                    name=plant.name,
+                    description=plant.description,
+                    category=plant.category,
+                    difficulty_level=plant.difficulty_level,
+                    duration_days=plant.duration_days,
+                    image_url=plant.image_url,
+                    probability=prob_mapping[slug]
+                )
+            )
     
     return PlantRecommendationResponse(
         weather_data=WeatherData(
