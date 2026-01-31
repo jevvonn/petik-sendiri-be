@@ -13,7 +13,7 @@ class GardenDesign(Base):
     name = Column(String(100), nullable=True)
     input_photo_url = Column(String(500), nullable=False)
     preferences = Column(JSONB, nullable=True)
-    design_output = Column(JSONB, nullable=True)
+    design_output = Column(String(500), nullable=True)
     is_implemented = Column(Boolean, default=False, nullable=True)
     rating = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

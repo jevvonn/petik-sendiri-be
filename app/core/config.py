@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     KNOWLEDGE_BASE_PATH: str = "knowledge_base"
     VECTOR_STORE_PATH: str = "vector_store"
     
+    # Gemini AI Configuration
+    GEMINI_API_KEY: str = ""
+    
+    # Upload Configuration
+    UPLOAD_DIR: str = "public/garden_designs"
+    
     @property
     def DATABASE_URL(self) -> str:
         return f"postgresql://{self.DATABASE_USER}:{self.DATABASE_PASSWORD}@{self.DATABASE_HOST}:{self.DATABASE_PORT}/{self.DATABASE_NAME}"

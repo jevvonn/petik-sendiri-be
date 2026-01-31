@@ -154,3 +154,6 @@ venv-ml/
 # Ignore knowledge base files
 knowledge_base/*
 
+# Ignore public/garden_designs
+public/garden_designs/*
+
