@@ -31,6 +31,7 @@ class PlantRecommendationRequest(BaseModel):
 class PlantRecommendation(BaseModel):
     id: int
     name: str
+    slug: Optional[str] = None
     description: Optional[str] = None
     category: str
     difficulty_level: Optional[str] = None
@@ -169,6 +170,7 @@ async def get_plant_recommendation(
                 PlantRecommendation(
                     id=plant.id,
                     name=plant.name,
+                    slug=plant.slug,
                     description=plant.description,
                     category=plant.category,
                     difficulty_level=plant.difficulty_level,
